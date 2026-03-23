@@ -1,5 +1,5 @@
 #lang racket
-(require db racket/pretty racket/control threading "wrap-prompt.rkt")
+(require db racket/control "wrap-prompt.rkt")
 
 
 
