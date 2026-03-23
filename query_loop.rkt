@@ -1,22 +1,37 @@
 #lang racket
-(require db racket/pretty racket/control "wrap-prompt.rkt")
+(require db racket/pretty racket/control threading "wrap-prompt.rkt")
 
 
-(define (make-query-func get-sql db-path)
-   
+
+(define-with-enclosing-prompt (sqlite-query-proc get-query db-path)
   (define conn (sqlite3-connect #:database db-path
                                 #:mode 'create))
-   
-  (define sql (get-sql))
-                             
-  (with-handlers ([exn:fail:sql? (lambda (e) (printf "Got exception: ~S~n" e))])
-    (let ((result (query-rows conn sql)))
-      result)))
+
+  (let-values (((db-func sql) (get-query)))
+    
+    (with-handlers ([exn:fail:sql? (lambda (e) (printf "Got exception: ~S~n" e))])
+      (match db-func
+        ('rows (query-rows conn sql))
+        ('exec (query-exec conn sql))
+        ('row (query-row conn sql))
+        ('maybe-row (query-maybe-row conn sql))))))
 
 
-(define send-query (wrap-prompt make-query-func "this-db.db"))
+(define send-query (sqlite-query-proc "this-db.db"))
 
-(send-query "SELECT x, y, z FROM FOO ORDER BY x")
 
-(send-query "SELECT x, y, z FROM FOO ORDER BY x DESC")
+(define (send-queries-exec . queries)
+  (for-each (curry send-query 'exec) queries))
+
+
+(send-queries-exec
+ "DROP TABLE IF EXISTS Foo"
+ "CREATE TABLE Foo (x, y, z)"
+ "INSERT INTO Foo (x, y, z) VALUES (1, 2, 3), (4, 5, 6), (9, 8, 7)")
+
+(define send-query-rows (curry send-query 'rows))
+
+(send-query-rows "SELECT x, y, z FROM Foo ORDER BY x")
+
+(send-query-rows "SELECT x, y, z FROM Foo ORDER BY x DESC")
 
